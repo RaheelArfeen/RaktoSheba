@@ -9,7 +9,7 @@ app.use(express.json());
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
-    message: 'Blood Donation & Emergency Platform API is running',
+    message: 'RaktoSheba API is running',
   });
 });
 
