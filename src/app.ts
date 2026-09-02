@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express, { Application, NextFunction, Request, Response } from 'express';
+import prisma from './config/prisma';
 
 const app: Application = express();
 
@@ -11,6 +12,15 @@ app.get('/', (req: Request, res: Response) => {
     success: true,
     message: 'RaktoSheba API is running',
   });
+});
+
+app.get('/health', async (req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ success: true, message: 'Database connected' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Database connection failed' });
+  }
 });
 
 app.use((req: Request, res: Response) => {

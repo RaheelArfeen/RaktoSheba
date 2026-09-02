@@ -1,0 +1,152 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  HOSPITAL
+  DONOR
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+enum RequestStatus {
+  PENDING
+  VERIFIED
+  MATCHED
+  FULFILLED
+  CANCELLED
+}
+
+enum DonationStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?
+  role          Role     @default(DONOR)
+  isVolunteer   Boolean  @default(false)
+  isBanned      Boolean  @default(false)
+  oauthProvider String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  donorProfile  DonorProfile?
+  hospital      Hospital?
+  requests      BloodRequest[] @relation("RequesterUser")
+  notifications Notification[]
+  payments      Payment[]
+}
+
+model DonorProfile {
+  id             String     @id @default(uuid())
+  userId         String     @unique
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bloodGroup     BloodGroup
+  lastDonationAt DateTime?
+  isAvailable    Boolean    @default(true)
+  lat            Float?
+  lng            Float?
+
+  donations Donation[]
+
+  @@index([bloodGroup])
+  @@index([isAvailable])
+}
+
+model Hospital {
+  id       String  @id @default(uuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name     String
+  address  String
+  verified Boolean @default(false)
+}
+
+model BloodRequest {
+  id          String        @id @default(uuid())
+  requesterId String
+  requester   User          @relation("RequesterUser", fields: [requesterId], references: [id])
+  bloodGroup  BloodGroup
+  unitsNeeded Int
+  urgency     Int           @default(1)
+  status      RequestStatus @default(PENDING)
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime      @default(now())
+
+  donation      Donation?
+  notifications Notification[]
+
+  @@index([bloodGroup])
+  @@index([status])
+}
+
+model Donation {
+  id          String         @id @default(uuid())
+  donorId     String
+  donor       DonorProfile   @relation(fields: [donorId], references: [id])
+  requestId   String         @unique
+  request     BloodRequest   @relation(fields: [requestId], references: [id])
+  scheduledAt DateTime?
+  completedAt DateTime?
+  status      DonationStatus @default(SCHEDULED)
+
+  @@index([donorId])
+}
+
+model Notification {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestId String?
+  request   BloodRequest? @relation(fields: [requestId], references: [id])
+  channel   String
+  sentAt    DateTime      @default(now())
+  readAt    DateTime?
+
+  @@index([userId])
+}
+
+model Payment {
+  id         String        @id @default(uuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id])
+  amount     Float
+  gatewayRef String?
+  purpose    String
+  status     PaymentStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+
+  @@index([status])
+}
