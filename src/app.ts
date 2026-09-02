@@ -1,6 +1,8 @@
 import cors from 'cors';
-import express, { Application, NextFunction, Request, Response } from 'express';
+import express, { Application, Request, Response } from 'express';
 import prisma from './config/prisma';
+import routes from './app/routes';
+import globalErrorHandler from './app/middlewares/globalErrorHandler';
 
 const app: Application = express();
 
@@ -23,6 +25,8 @@ app.get('/health', async (req: Request, res: Response) => {
   }
 });
 
+app.use('/api', routes);
+
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     success: false,
@@ -30,11 +34,6 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  res.status(500).json({
-    success: false,
-    message: err.message || 'Something went wrong',
-  });
-});
+app.use(globalErrorHandler);
 
 export default app;
