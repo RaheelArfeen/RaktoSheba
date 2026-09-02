@@ -2,7 +2,9 @@ import { BloodGroup, Prisma, RequestStatus } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import AppError from '../../utils/AppError';
 import { isEligibleByLastDonation } from '../donor/donor.constant';
-import { distanceInKm, getCompatibleDonorGroups } from './bloodCompatibility';
+import { getCompatibleDonorGroups } from './bloodCompatibility';
+import { findMatchingDonors } from './matching';
+import { NotificationService } from '../notification/notification.service';
 
 type TCreateBloodRequestPayload = {
   bloodGroup: BloodGroup;
@@ -59,10 +61,14 @@ const verifyRequest = async (id: string) => {
     throw new AppError(400, `Cannot verify a request with status ${request.status}`);
   }
 
-  return prisma.bloodRequest.update({
+  const verifiedRequest = await prisma.bloodRequest.update({
     where: { id },
     data: { status: RequestStatus.VERIFIED },
   });
+
+  await NotificationService.fanOutForRequest(verifiedRequest);
+
+  return verifiedRequest;
 };
 
 const cancelRequest = async (id: string, requesterId: string, isAdmin: boolean) => {
@@ -93,36 +99,7 @@ const getMatches = async (requestId: string) => {
     throw new AppError(404, 'Blood request not found');
   }
 
-  const compatibleGroups = getCompatibleDonorGroups(request.bloodGroup);
-
-  const candidates = await prisma.donorProfile.findMany({
-    where: {
-      bloodGroup: { in: compatibleGroups },
-      isAvailable: true,
-    },
-    include: { user: { select: { id: true, email: true } } },
-  });
-
-  const eligibleCandidates = candidates.filter((donor) =>
-    isEligibleByLastDonation(donor.lastDonationAt),
-  );
-
-  const withDistance = eligibleCandidates.map((donor) => {
-    const distanceKm =
-      request.lat != null && request.lng != null && donor.lat != null && donor.lng != null
-        ? distanceInKm(request.lat, request.lng, donor.lat, donor.lng)
-        : null;
-
-    return { ...donor, distanceKm };
-  });
-
-  withDistance.sort((a, b) => {
-    if (a.distanceKm == null) return 1;
-    if (b.distanceKm == null) return -1;
-    return a.distanceKm - b.distanceKm;
-  });
-
-  return withDistance;
+  return findMatchingDonors(request);
 };
 
 const acceptRequest = async (requestId: string, donorUserId: string) => {
