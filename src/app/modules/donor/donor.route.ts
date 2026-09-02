@@ -1,0 +1,39 @@
+import express from 'express';
+import { Role } from '@prisma/client';
+import auth from '../../middlewares/auth';
+import validateRequest from '../../middlewares/validateRequest';
+import { DonorValidation } from './donor.validation';
+import { DonorController } from './donor.controller';
+
+const router = express.Router();
+
+router.post(
+  '/',
+  auth(Role.DONOR),
+  validateRequest(DonorValidation.createDonorProfileValidationSchema),
+  DonorController.createProfile,
+);
+
+router.get('/me', auth(Role.DONOR), DonorController.getMyProfile);
+
+router.patch(
+  '/me',
+  auth(Role.DONOR),
+  validateRequest(DonorValidation.updateDonorProfileValidationSchema),
+  DonorController.updateMyProfile,
+);
+
+router.patch(
+  '/me/availability',
+  auth(Role.DONOR),
+  validateRequest(DonorValidation.updateAvailabilityValidationSchema),
+  DonorController.updateAvailability,
+);
+
+router.delete('/me', auth(Role.DONOR), DonorController.deleteMyProfile);
+
+router.get('/', auth(Role.ADMIN, Role.HOSPITAL), DonorController.listDonors);
+
+router.get('/:id', auth(Role.ADMIN, Role.HOSPITAL), DonorController.getDonorById);
+
+export const DonorRoutes = router;
