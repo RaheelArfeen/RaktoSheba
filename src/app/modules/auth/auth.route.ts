@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import passport from '../../../config/passport';
 import catchAsync from '../../utils/catchAsync';
+import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { AuthValidation } from './auth.validation';
 import { AuthController } from './auth.controller';
@@ -22,11 +23,13 @@ router.post(
   AuthController.refresh,
 );
 
+router.post('/logout', auth(), AuthController.logout);
+
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
 
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/api/auth/google/failed' }),
+  passport.authenticate('google', { session: false, failureRedirect: '/api/v1/auth/google/failed' }),
   catchAsync(async (req: Request, res: Response) => {
     const googleUser = req.user as unknown as { email: string; googleId: string };
     const result = await AuthService.loginOrRegisterWithGoogle(googleUser);

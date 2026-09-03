@@ -33,8 +33,17 @@ const refresh = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const logout = catchAsync(async (req: Request, res: Response) => {
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Logged out successfully. Discard your access and refresh tokens.',
+  });
+});
+
 export const AuthController = {
   register,
   login,
   refresh,
+  logout,
 };

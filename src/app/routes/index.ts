@@ -5,6 +5,7 @@ import { BloodRequestRoutes } from '../modules/bloodRequest/bloodRequest.route';
 import { NotificationRoutes } from '../modules/notification/notification.route';
 import { HospitalRoutes } from '../modules/hospital/hospital.route';
 import { AdminRoutes } from '../modules/admin/admin.route';
+import { UserRoutes } from '../modules/user/user.route';
 
 const router = express.Router();
 
@@ -12,6 +13,10 @@ const moduleRoutes = [
   {
     path: '/auth',
     route: AuthRoutes,
+  },
+  {
+    path: '/users',
+    route: UserRoutes,
   },
   {
     path: '/donors',
