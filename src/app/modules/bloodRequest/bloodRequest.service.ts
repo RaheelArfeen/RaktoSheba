@@ -5,6 +5,8 @@ import { isEligibleByLastDonation } from '../donor/donor.constant';
 import { getCompatibleDonorGroups } from './bloodCompatibility';
 import { findMatchingDonors } from './matching';
 import { NotificationService } from '../notification/notification.service';
+import { AuditLogService } from '../auditLog/auditLog.service';
+import { parsePagination, TPaginationParams } from '../../utils/pagination';
 
 type TCreateBloodRequestPayload = {
   bloodGroup: BloodGroup;
@@ -12,6 +14,13 @@ type TCreateBloodRequestPayload = {
   urgency?: number;
   lat?: number;
   lng?: number;
+};
+
+type TListRequestFilters = TPaginationParams & {
+  status?: RequestStatus;
+  bloodGroup?: BloodGroup;
+  sortBy?: 'createdAt' | 'urgency';
+  sortOrder?: 'asc' | 'desc';
 };
 
 const createRequest = async (requesterId: string, payload: TCreateBloodRequestPayload) => {
@@ -28,8 +37,8 @@ const createRequest = async (requesterId: string, payload: TCreateBloodRequestPa
 };
 
 const getRequestById = async (id: string) => {
-  const request = await prisma.bloodRequest.findUnique({
-    where: { id },
+  const request = await prisma.bloodRequest.findFirst({
+    where: { id, deletedAt: null },
     include: { donation: true },
   });
 
@@ -40,18 +49,32 @@ const getRequestById = async (id: string) => {
   return request;
 };
 
-const listRequests = async (filters: { status?: RequestStatus; bloodGroup?: BloodGroup }) => {
-  return prisma.bloodRequest.findMany({
-    where: {
-      status: filters.status,
-      bloodGroup: filters.bloodGroup,
-    },
-    orderBy: [{ urgency: 'desc' }, { createdAt: 'desc' }],
-  });
+const listRequests = async (filters: TListRequestFilters) => {
+  const { page, limit, skip } = parsePagination(filters);
+  const sortBy = filters.sortBy ?? 'createdAt';
+  const sortOrder = filters.sortOrder ?? 'desc';
+
+  const where: Prisma.BloodRequestWhereInput = {
+    deletedAt: null,
+    status: filters.status,
+    bloodGroup: filters.bloodGroup,
+  };
+
+  const [requests, total] = await Promise.all([
+    prisma.bloodRequest.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+    }),
+    prisma.bloodRequest.count({ where }),
+  ]);
+
+  return { requests, meta: { page, limit, total } };
 };
 
-const verifyRequest = async (id: string) => {
-  const request = await prisma.bloodRequest.findUnique({ where: { id } });
+const verifyRequest = async (actorId: string, id: string) => {
+  const request = await prisma.bloodRequest.findFirst({ where: { id, deletedAt: null } });
 
   if (!request) {
     throw new AppError(404, 'Blood request not found');
@@ -66,13 +89,14 @@ const verifyRequest = async (id: string) => {
     data: { status: RequestStatus.VERIFIED },
   });
 
+  await AuditLogService.log(actorId, 'VERIFY_REQUEST', 'BloodRequest', id);
   await NotificationService.fanOutForRequest(verifiedRequest);
 
   return verifiedRequest;
 };
 
-const cancelRequest = async (id: string, requesterId: string, isAdmin: boolean) => {
-  const request = await prisma.bloodRequest.findUnique({ where: { id } });
+const cancelRequest = async (actorId: string, id: string, requesterId: string, isAdmin: boolean) => {
+  const request = await prisma.bloodRequest.findFirst({ where: { id, deletedAt: null } });
 
   if (!request) {
     throw new AppError(404, 'Blood request not found');
@@ -86,14 +110,18 @@ const cancelRequest = async (id: string, requesterId: string, isAdmin: boolean) 
     throw new AppError(400, 'Cannot cancel a fulfilled request');
   }
 
-  return prisma.bloodRequest.update({
+  const cancelled = await prisma.bloodRequest.update({
     where: { id },
     data: { status: RequestStatus.CANCELLED },
   });
+
+  await AuditLogService.log(actorId, 'CANCEL_REQUEST', 'BloodRequest', id);
+
+  return cancelled;
 };
 
 const getMatches = async (requestId: string) => {
-  const request = await prisma.bloodRequest.findUnique({ where: { id: requestId } });
+  const request = await prisma.bloodRequest.findFirst({ where: { id: requestId, deletedAt: null } });
 
   if (!request) {
     throw new AppError(404, 'Blood request not found');
@@ -103,7 +131,7 @@ const getMatches = async (requestId: string) => {
 };
 
 const acceptRequest = async (requestId: string, donorUserId: string) => {
-  const request = await prisma.bloodRequest.findUnique({ where: { id: requestId } });
+  const request = await prisma.bloodRequest.findFirst({ where: { id: requestId, deletedAt: null } });
 
   if (!request) {
     throw new AppError(404, 'Blood request not found');
@@ -113,7 +141,9 @@ const acceptRequest = async (requestId: string, donorUserId: string) => {
     throw new AppError(400, `This request is already ${request.status.toLowerCase()}`);
   }
 
-  const donorProfile = await prisma.donorProfile.findUnique({ where: { userId: donorUserId } });
+  const donorProfile = await prisma.donorProfile.findFirst({
+    where: { userId: donorUserId, deletedAt: null },
+  });
 
   if (!donorProfile) {
     throw new AppError(404, 'Donor profile not found. Create a donor profile first.');
@@ -134,8 +164,8 @@ const acceptRequest = async (requestId: string, donorUserId: string) => {
   }
 
   try {
-    return await prisma.$transaction(async (tx) => {
-      const donation = await tx.donation.create({
+    const donation = await prisma.$transaction(async (tx) => {
+      const created = await tx.donation.create({
         data: {
           donorId: donorProfile.id,
           requestId: request.id,
@@ -148,8 +178,12 @@ const acceptRequest = async (requestId: string, donorUserId: string) => {
         data: { status: RequestStatus.MATCHED },
       });
 
-      return donation;
+      return created;
     });
+
+    await AuditLogService.log(donorUserId, 'ACCEPT_REQUEST', 'BloodRequest', requestId);
+
+    return donation;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new AppError(409, 'This request has already been matched with another donor');

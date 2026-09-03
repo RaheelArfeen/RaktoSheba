@@ -2,9 +2,10 @@ import { Request, Response } from 'express';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { AdminService } from './admin.service';
+import { AuditLogService } from '../auditLog/auditLog.service';
 
 const banUser = catchAsync(async (req: Request, res: Response) => {
-  const result = await AdminService.setUserBanStatus(req.params.id as string, true);
+  const result = await AdminService.setUserBanStatus(req.user!.userId, req.params.id as string, true);
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -14,7 +15,7 @@ const banUser = catchAsync(async (req: Request, res: Response) => {
 });
 
 const unbanUser = catchAsync(async (req: Request, res: Response) => {
-  const result = await AdminService.setUserBanStatus(req.params.id as string, false);
+  const result = await AdminService.setUserBanStatus(req.user!.userId, req.params.id as string, false);
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -24,7 +25,7 @@ const unbanUser = catchAsync(async (req: Request, res: Response) => {
 });
 
 const verifyHospital = catchAsync(async (req: Request, res: Response) => {
-  const result = await AdminService.verifyHospital(req.params.id as string);
+  const result = await AdminService.verifyHospital(req.user!.userId, req.params.id as string);
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -43,9 +44,21 @@ const getAnalytics = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listAuditLogs = catchAsync(async (req: Request, res: Response) => {
+  const { logs, meta } = await AuditLogService.listLogs(req.query);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Audit logs retrieved successfully',
+    data: logs,
+    meta,
+  });
+});
+
 export const AdminController = {
   banUser,
   unbanUser,
   verifyHospital,
   getAnalytics,
+  listAuditLogs,
 };

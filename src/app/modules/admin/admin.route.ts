@@ -15,4 +15,6 @@ router.patch('/hospitals/:id/verify', AdminController.verifyHospital);
 
 router.get('/analytics', AdminController.getAnalytics);
 
+router.get('/audit-logs', AdminController.listAuditLogs);
+
 export const AdminRoutes = router;

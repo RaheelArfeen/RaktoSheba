@@ -25,21 +25,26 @@ const getRequestById = catchAsync(async (req: Request, res: Response) => {
 });
 
 const listRequests = catchAsync(async (req: Request, res: Response) => {
-  const { status, bloodGroup } = req.query;
-  const result = await BloodRequestService.listRequests({
+  const { status, bloodGroup, page, limit, sortBy, sortOrder } = req.query;
+  const { requests, meta } = await BloodRequestService.listRequests({
     status: status as RequestStatus | undefined,
     bloodGroup: bloodGroup as BloodGroup | undefined,
+    page: page as string | undefined,
+    limit: limit as string | undefined,
+    sortBy: sortBy as 'createdAt' | 'urgency' | undefined,
+    sortOrder: sortOrder as 'asc' | 'desc' | undefined,
   });
   sendResponse(res, {
     statusCode: 200,
     success: true,
     message: 'Blood requests retrieved successfully',
-    data: result,
+    data: requests,
+    meta,
   });
 });
 
 const verifyRequest = catchAsync(async (req: Request, res: Response) => {
-  const result = await BloodRequestService.verifyRequest(req.params.id as string);
+  const result = await BloodRequestService.verifyRequest(req.user!.userId, req.params.id as string);
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -51,6 +56,7 @@ const verifyRequest = catchAsync(async (req: Request, res: Response) => {
 const cancelRequest = catchAsync(async (req: Request, res: Response) => {
   const isAdmin = req.user!.role === Role.ADMIN;
   const result = await BloodRequestService.cancelRequest(
+    req.user!.userId,
     req.params.id as string,
     req.user!.userId,
     isAdmin,
