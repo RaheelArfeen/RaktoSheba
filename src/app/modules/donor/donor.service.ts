@@ -1,7 +1,8 @@
-import { BloodGroup } from '@prisma/client';
+import { BloodGroup, Prisma } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import AppError from '../../utils/AppError';
 import { isEligibleByLastDonation } from './donor.constant';
+import { parsePagination, TPaginationParams } from '../../utils/pagination';
 
 type TCreateDonorProfilePayload = {
   bloodGroup: BloodGroup;
@@ -11,6 +12,14 @@ type TCreateDonorProfilePayload = {
 };
 
 type TUpdateDonorProfilePayload = Partial<TCreateDonorProfilePayload>;
+
+type TListDonorFilters = TPaginationParams & {
+  bloodGroup?: BloodGroup;
+  isAvailable?: boolean;
+  search?: string;
+  sortBy?: 'bloodGroup' | 'lastDonationAt';
+  sortOrder?: 'asc' | 'desc';
+};
 
 const withEligibility = <T extends { lastDonationAt: Date | null }>(profile: T) => ({
   ...profile,
@@ -38,7 +47,7 @@ const createProfile = async (userId: string, payload: TCreateDonorProfilePayload
 };
 
 const getMyProfile = async (userId: string) => {
-  const profile = await prisma.donorProfile.findUnique({ where: { userId } });
+  const profile = await prisma.donorProfile.findFirst({ where: { userId, deletedAt: null } });
 
   if (!profile) {
     throw new AppError(404, 'Donor profile not found');
@@ -48,8 +57,8 @@ const getMyProfile = async (userId: string) => {
 };
 
 const getDonorById = async (id: string) => {
-  const profile = await prisma.donorProfile.findUnique({
-    where: { id },
+  const profile = await prisma.donorProfile.findFirst({
+    where: { id, deletedAt: null },
     include: { user: { select: { id: true, email: true } } },
   });
 
@@ -61,7 +70,7 @@ const getDonorById = async (id: string) => {
 };
 
 const updateMyProfile = async (userId: string, payload: TUpdateDonorProfilePayload) => {
-  const existingProfile = await prisma.donorProfile.findUnique({ where: { userId } });
+  const existingProfile = await prisma.donorProfile.findFirst({ where: { userId, deletedAt: null } });
 
   if (!existingProfile) {
     throw new AppError(404, 'Donor profile not found');
@@ -81,7 +90,7 @@ const updateMyProfile = async (userId: string, payload: TUpdateDonorProfilePaylo
 };
 
 const updateAvailability = async (userId: string, isAvailable: boolean) => {
-  const existingProfile = await prisma.donorProfile.findUnique({ where: { userId } });
+  const existingProfile = await prisma.donorProfile.findFirst({ where: { userId, deletedAt: null } });
 
   if (!existingProfile) {
     throw new AppError(404, 'Donor profile not found');
@@ -95,27 +104,42 @@ const updateAvailability = async (userId: string, isAvailable: boolean) => {
   return withEligibility(profile);
 };
 
-const listDonors = async (filters: { bloodGroup?: BloodGroup; isAvailable?: boolean }) => {
-  const profiles = await prisma.donorProfile.findMany({
-    where: {
-      bloodGroup: filters.bloodGroup,
-      isAvailable: filters.isAvailable,
-    },
-    include: { user: { select: { id: true, email: true } } },
-    orderBy: { id: 'desc' },
-  });
+const listDonors = async (filters: TListDonorFilters) => {
+  const { page, limit, skip } = parsePagination(filters);
+  const sortBy = filters.sortBy ?? 'bloodGroup';
+  const sortOrder = filters.sortOrder ?? 'asc';
 
-  return profiles.map(withEligibility);
+  const where: Prisma.DonorProfileWhereInput = {
+    deletedAt: null,
+    bloodGroup: filters.bloodGroup,
+    isAvailable: filters.isAvailable,
+    ...(filters.search
+      ? { user: { email: { contains: filters.search, mode: 'insensitive' } } }
+      : {}),
+  };
+
+  const [profiles, total] = await Promise.all([
+    prisma.donorProfile.findMany({
+      where,
+      skip,
+      take: limit,
+      include: { user: { select: { id: true, email: true } } },
+      orderBy: { [sortBy]: sortOrder },
+    }),
+    prisma.donorProfile.count({ where }),
+  ]);
+
+  return { donors: profiles.map(withEligibility), meta: { page, limit, total } };
 };
 
 const deleteMyProfile = async (userId: string) => {
-  const existingProfile = await prisma.donorProfile.findUnique({ where: { userId } });
+  const existingProfile = await prisma.donorProfile.findFirst({ where: { userId, deletedAt: null } });
 
   if (!existingProfile) {
     throw new AppError(404, 'Donor profile not found');
   }
 
-  await prisma.donorProfile.delete({ where: { userId } });
+  await prisma.donorProfile.update({ where: { userId }, data: { deletedAt: new Date() } });
 };
 
 export const DonorService = {

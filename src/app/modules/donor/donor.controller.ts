@@ -55,18 +55,24 @@ const updateAvailability = catchAsync(async (req: Request, res: Response) => {
 });
 
 const listDonors = catchAsync(async (req: Request, res: Response) => {
-  const { bloodGroup, isAvailable } = req.query;
+  const { bloodGroup, isAvailable, search, page, limit, sortBy, sortOrder } = req.query;
 
-  const result = await DonorService.listDonors({
+  const { donors, meta } = await DonorService.listDonors({
     bloodGroup: bloodGroup as BloodGroup | undefined,
     isAvailable: isAvailable === undefined ? undefined : isAvailable === 'true',
+    search: search as string | undefined,
+    page: page as string | undefined,
+    limit: limit as string | undefined,
+    sortBy: sortBy as 'bloodGroup' | 'lastDonationAt' | undefined,
+    sortOrder: sortOrder as 'asc' | 'desc' | undefined,
   });
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
     message: 'Donors retrieved successfully',
-    data: result,
+    data: donors,
+    meta,
   });
 });
 
