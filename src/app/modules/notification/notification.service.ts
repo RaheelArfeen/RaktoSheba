@@ -19,7 +19,7 @@ const fanOutForRequest = async (request: BloodRequest) => {
     ),
   );
 
-  await Promise.allSettled(
+  const emailResults = await Promise.allSettled(
     matchingDonors.map((donor) =>
       sendEmail(
         donor.user.email,
@@ -29,6 +29,15 @@ const fanOutForRequest = async (request: BloodRequest) => {
       ),
     ),
   );
+
+  emailResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.error(
+        `[notification] failed to email ${matchingDonors[index]?.user.email}:`,
+        result.reason,
+      );
+    }
+  });
 
   return notifications.length;
 };
