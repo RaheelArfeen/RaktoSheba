@@ -114,6 +114,7 @@ model BloodRequest {
 
   donation      Donation?
   notifications Notification[]
+  payments      Payment[]
 
   @@index([bloodGroup])
   @@index([status])
@@ -150,13 +151,18 @@ model Payment {
   id         String        @id @default(uuid())
   userId     String
   user       User          @relation(fields: [userId], references: [id])
+  requestId  String?
+  request    BloodRequest? @relation(fields: [requestId], references: [id])
   amount     Float
-  gatewayRef String?
+  currency   String        @default("usd")
+  gatewayRef String?       @unique
   purpose    String
   status     PaymentStatus @default(PENDING)
   createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
   @@index([status])
+  @@index([userId])
 }
 
 model AuditLog {

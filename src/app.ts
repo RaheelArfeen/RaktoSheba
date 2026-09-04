@@ -5,6 +5,7 @@ import express, { Application, Request, Response } from 'express';
 import prisma from './config/prisma';
 import routes from './app/routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
+import { PaymentController } from './app/modules/payment/payment.controller';
 
 const app: Application = express();
 
@@ -15,6 +16,15 @@ app.use(
     credentials: true,
   }),
 );
+
+// Stripe requires the raw request body to verify webhook signatures, so this
+// route is registered before express.json() and given its own raw parser.
+app.post(
+  '/api/v1/payments/webhook',
+  express.raw({ type: 'application/json' }),
+  PaymentController.handleWebhook,
+);
+
 app.use(express.json());
 
 const globalLimiter = rateLimit({
