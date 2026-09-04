@@ -2,6 +2,7 @@ import express from 'express';
 import { Role } from '@prisma/client';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
+import upload from '../../middlewares/upload';
 import { HospitalValidation } from './hospital.validation';
 import { HospitalController } from './hospital.controller';
 
@@ -21,6 +22,13 @@ router.patch(
   auth(Role.HOSPITAL),
   validateRequest(HospitalValidation.updateHospitalProfileValidationSchema),
   HospitalController.updateMyProfile,
+);
+
+router.post(
+  '/me/document',
+  auth(Role.HOSPITAL),
+  upload.single('document'),
+  HospitalController.uploadLicenseDocument,
 );
 
 router.get('/', auth(Role.ADMIN), HospitalController.listHospitals);

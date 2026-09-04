@@ -1,5 +1,6 @@
 import prisma from '../../../config/prisma';
 import AppError from '../../utils/AppError';
+import { uploadToCloudinary } from '../../utils/uploadToCloudinary';
 
 type THospitalPayload = {
   name: string;
@@ -45,6 +46,21 @@ const updateMyProfile = async (userId: string, payload: Partial<THospitalPayload
   });
 };
 
+const uploadLicenseDocument = async (userId: string, file: Express.Multer.File) => {
+  const existingProfile = await prisma.hospital.findUnique({ where: { userId } });
+
+  if (!existingProfile) {
+    throw new AppError(404, 'Hospital profile not found');
+  }
+
+  const { url } = await uploadToCloudinary(file.buffer, 'hospital-documents', existingProfile.id);
+
+  return prisma.hospital.update({
+    where: { userId },
+    data: { licenseDocUrl: url },
+  });
+};
+
 const listHospitals = async () => {
   return prisma.hospital.findMany({
     include: { user: { select: { id: true, email: true } } },
@@ -56,5 +72,6 @@ export const HospitalService = {
   createProfile,
   getMyProfile,
   updateMyProfile,
+  uploadLicenseDocument,
   listHospitals,
 };

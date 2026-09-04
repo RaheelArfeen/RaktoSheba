@@ -78,6 +78,7 @@ model DonorProfile {
   isAvailable    Boolean    @default(true)
   lat            Float?
   lng            Float?
+  photoUrl       String?
   deletedAt      DateTime?
 
   donations Donation[]
@@ -88,13 +89,14 @@ model DonorProfile {
 }
 
 model Hospital {
-  id        String    @id @default(uuid())
-  userId    String    @unique
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  address   String
-  verified  Boolean   @default(false)
-  deletedAt DateTime?
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  address       String
+  verified      Boolean   @default(false)
+  licenseDocUrl String?
+  deletedAt     DateTime?
 
   @@index([deletedAt])
 }

@@ -2,6 +2,7 @@ import express from 'express';
 import { Role } from '@prisma/client';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
+import upload from '../../middlewares/upload';
 import { DonorValidation } from './donor.validation';
 import { DonorController } from './donor.controller';
 
@@ -31,6 +32,13 @@ router.patch(
 );
 
 router.delete('/me', auth(Role.DONOR), DonorController.deleteMyProfile);
+
+router.post(
+  '/me/photo',
+  auth(Role.DONOR),
+  upload.single('photo'),
+  DonorController.uploadPhoto,
+);
 
 router.get('/', auth(Role.ADMIN, Role.HOSPITAL), DonorController.listDonors);
 

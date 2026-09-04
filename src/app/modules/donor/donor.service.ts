@@ -3,6 +3,7 @@ import prisma from '../../../config/prisma';
 import AppError from '../../utils/AppError';
 import { isEligibleByLastDonation } from './donor.constant';
 import { parsePagination, TPaginationParams } from '../../utils/pagination';
+import { uploadToCloudinary } from '../../utils/uploadToCloudinary';
 
 type TCreateDonorProfilePayload = {
   bloodGroup: BloodGroup;
@@ -132,6 +133,23 @@ const listDonors = async (filters: TListDonorFilters) => {
   return { donors: profiles.map(withEligibility), meta: { page, limit, total } };
 };
 
+const uploadPhoto = async (userId: string, file: Express.Multer.File) => {
+  const existingProfile = await prisma.donorProfile.findFirst({ where: { userId, deletedAt: null } });
+
+  if (!existingProfile) {
+    throw new AppError(404, 'Donor profile not found');
+  }
+
+  const { url } = await uploadToCloudinary(file.buffer, 'donor-photos', existingProfile.id);
+
+  const profile = await prisma.donorProfile.update({
+    where: { userId },
+    data: { photoUrl: url },
+  });
+
+  return withEligibility(profile);
+};
+
 const deleteMyProfile = async (userId: string) => {
   const existingProfile = await prisma.donorProfile.findFirst({ where: { userId, deletedAt: null } });
 
@@ -149,5 +167,6 @@ export const DonorService = {
   updateMyProfile,
   updateAvailability,
   listDonors,
+  uploadPhoto,
   deleteMyProfile,
 };

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BloodGroup } from '@prisma/client';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
+import AppError from '../../utils/AppError';
 import { DonorService } from './donor.service';
 
 const createProfile = catchAsync(async (req: Request, res: Response) => {
@@ -76,6 +77,20 @@ const listDonors = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const uploadPhoto = catchAsync(async (req: Request, res: Response) => {
+  if (!req.file) {
+    throw new AppError(400, 'No photo file uploaded');
+  }
+
+  const result = await DonorService.uploadPhoto(req.user!.userId, req.file);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Photo uploaded successfully',
+    data: result,
+  });
+});
+
 const deleteMyProfile = catchAsync(async (req: Request, res: Response) => {
   await DonorService.deleteMyProfile(req.user!.userId);
   sendResponse(res, {
@@ -92,5 +107,6 @@ export const DonorController = {
   updateMyProfile,
   updateAvailability,
   listDonors,
+  uploadPhoto,
   deleteMyProfile,
 };

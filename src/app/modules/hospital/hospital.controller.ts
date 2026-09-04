@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
+import AppError from '../../utils/AppError';
 import { HospitalService } from './hospital.service';
 
 const createProfile = catchAsync(async (req: Request, res: Response) => {
@@ -33,6 +34,20 @@ const updateMyProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const uploadLicenseDocument = catchAsync(async (req: Request, res: Response) => {
+  if (!req.file) {
+    throw new AppError(400, 'No document file uploaded');
+  }
+
+  const result = await HospitalService.uploadLicenseDocument(req.user!.userId, req.file);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Document uploaded successfully',
+    data: result,
+  });
+});
+
 const listHospitals = catchAsync(async (req: Request, res: Response) => {
   const result = await HospitalService.listHospitals();
   sendResponse(res, {
@@ -47,5 +62,6 @@ export const HospitalController = {
   createProfile,
   getMyProfile,
   updateMyProfile,
+  uploadLicenseDocument,
   listHospitals,
 };
