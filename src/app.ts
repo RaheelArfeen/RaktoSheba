@@ -1,11 +1,13 @@
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import express, { Application, Request, Response } from 'express';
 import prisma from './config/prisma';
 import routes from './app/routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 import { PaymentController } from './app/modules/payment/payment.controller';
+import { openApiSpec } from './docs/openapi';
 
 const app: Application = express();
 
@@ -65,6 +67,16 @@ app.get('/health', async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Database connection failed' });
   }
 });
+
+app.get('/api/v1/docs.json', (req: Request, res: Response) => {
+  res.status(200).json(openApiSpec);
+});
+
+app.use(
+  '/api/v1/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(openApiSpec, { customSiteTitle: 'RaktoSheba API Docs' }),
+);
 
 app.use('/api/v1', routes);
 
